@@ -33,7 +33,8 @@ A configurable security dashboard built for the AccuKnox Front-End Trainee assig
 | **Zustand** | The state is one small slice (categories plus a search query). Zustand gives a typed store with plain functions as actions, no providers or boilerplate, and a `persist` middleware for `localStorage`. Redux Toolkit would work too but adds ceremony that this size of app does not need. |
 | **Tailwind CSS v4** | Fast to match the mockup's spacing and colours without a separate stylesheet per component. |
 | **Hand-rolled SVG charts** | Two simple chart shapes (donut and stacked bar) are a few lines of SVG and CSS each, which keeps the bundle small (about 55 kB gzipped JS) instead of pulling in a chart library. |
-| **Vitest** | Shares Vite's config and runs the store tests in a jsdom environment with a real `localStorage`. |
+| **Vitest + React Testing Library** | Shares Vite's config and runs the store and component tests in a jsdom environment with a real `localStorage`. |
+| **Playwright** | Drives the built app in a real Chromium for the end-to-end flows. |
 
 ### State design
 
@@ -51,6 +52,7 @@ src/
   store/
     dashboardStore.ts        Zustand store: add, remove, toggle, apply, search, reset
     dashboardStore.test.ts   Vitest unit tests for the store and search
+  test/setup.ts              Test setup: jest-dom matchers and cleanup
   lib/
     filterWidgets.ts         Pure search filter across all categories
     safeStorage.ts           localStorage wrapper with try/catch
@@ -68,8 +70,12 @@ src/
     EmptySearchState.tsx     Shown when no widget matches the search
     charts/                  DonutChart, StackedBar, ChartLegend, EmptyChart
     icons.tsx                Inline SVG icons
+    Dashboard.test.tsx       React Testing Library component tests
   App.tsx                    Page layout and drawer state
   main.tsx                   Entry point
+e2e/dashboard.spec.ts        Playwright end-to-end tests
+playwright.config.ts         Playwright config (Chromium, vite preview web server)
+.github/workflows/ci.yml     CI: lint, unit tests, build, end-to-end tests
 docs/                        Screenshots (desktop and mobile)
 ```
 
@@ -82,9 +88,55 @@ npm install       # install dependencies
 npm run dev       # start the dev server at http://localhost:5173
 npm run build     # type-check and build to dist/
 npm run preview   # serve the production build locally
-npm test          # run the unit tests once
+npm test          # run the unit and component tests once
+npm run test:e2e  # run the Playwright end-to-end tests
 npm run lint      # run ESLint
 ```
+
+## Testing
+
+### Unit and component tests (Vitest)
+
+```bash
+npm test             # run once
+npm run test:watch   # watch mode
+```
+
+- `src/store/dashboardStore.test.ts` covers the store actions (add, remove, toggle, apply drawer changes, reset), persistence to `localStorage` and the search filter.
+- `src/components/Dashboard.test.tsx` uses React Testing Library to render the widget card and the full app, then removes a widget, adds one through the drawer and searches, the same way a user would.
+
+### End-to-end tests (Playwright)
+
+```bash
+npx playwright install chromium   # first run only
+npm run test:e2e
+```
+
+The suite in `e2e/` runs in Chromium against the production build: Playwright builds the app and starts `vite preview` on port 4173 by itself. It covers:
+
+- the three categories and six widgets rendered from the JSON config
+- removing a widget with its cross button
+- adding a widget through the drawer (name, text, Add to list, Confirm) into the right category, plus form validation
+- unchecking a widget in the drawer to hide it and checking it to show it again
+- Cancel discarding staged changes
+- search by name and by text, the empty state and Clear search
+- the layout surviving a reload, and Reset to default
+- Escape closing the drawer and returning focus to the button that opened it
+- a phone-sized viewport: one column, no horizontal scroll, full-width drawer
+
+To run the same suite against a deployed copy, set `BASE_URL`, for example `BASE_URL=https://example.com npm run test:e2e`. No local server is started in that case.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request, on Ubuntu with Node.js 20:
+
+1. `npm ci`
+2. `npm run lint`
+3. `npm test`
+4. `npm run build`
+5. `npx playwright install --with-deps chromium`, then `npm run test:e2e`
+
+If the end-to-end step fails, the Playwright HTML report is uploaded as a build artifact.
 
 ## Deployment
 
