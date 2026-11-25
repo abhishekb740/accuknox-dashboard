@@ -1,0 +1,85 @@
+{
+  "categories": [
+    {
+      "id": "cspm",
+      "name": "CSPM Executive Dashboard",
+      "tabLabel": "CSPM",
+      "widgets": [
+        {
+          "id": "cloud-accounts",
+          "name": "Cloud Accounts",
+          "text": "Connection status of onboarded cloud accounts.",
+          "type": "donut",
+          "data": [
+            { "label": "Connected", "value": 2, "color": "#4f6ef7" },
+            { "label": "Not Connected", "value": 2, "color": "#dbe3ff" }
+          ]
+        },
+        {
+          "id": "cloud-account-risk",
+          "name": "Cloud Account Risk Assessment",
+          "text": "Results of the latest compliance checks across accounts.",
+          "type": "donut",
+          "data": [
+            { "label": "Failed", "value": 1689, "color": "#d7263d" },
+            { "label": "Warning", "value": 681, "color": "#f4b400" },
+            { "label": "Not available", "value": 36, "color": "#c4c9d4" },
+            { "label": "Passed", "value": 7253, "color": "#1e9e5a" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cwpp",
+      "name": "CWPP Dashboard",
+      "tabLabel": "CWPP",
+      "widgets": [
+        {
+          "id": "namespace-alerts",
+          "name": "Top 5 Namespace Specific Alerts",
+          "text": "Namespaces raising the most runtime alerts.",
+          "type": "empty"
+        },
+        {
+          "id": "workload-alerts",
+          "name": "Workload Alerts",
+          "text": "Policy violations reported by running workloads.",
+          "type": "empty"
+        }
+      ]
+    },
+    {
+      "id": "registry",
+      "name": "Registry Scan",
+      "tabLabel": "Image",
+      "widgets": [
+        {
+          "id": "image-risk",
+          "name": "Image Risk Assessment",
+          "text": "Vulnerabilities found in scanned container images.",
+          "type": "bar",
+          "unit": "Total Vulnerabilities",
+          "data": [
+            { "label": "Critical", "value": 9, "color": "#8b0f1f" },
+            { "label": "High", "value": 150, "color": "#e0453a" },
+            { "label": "Medium", "value": 520, "color": "#f28c38" },
+            { "label": "Low", "value": 791, "color": "#f7cf5a" }
+          ]
+        },
+        {
+          "id": "image-security",
+          "name": "Image Security Issues",
+          "text": "Images with misconfigurations or exposed secrets.",
+          "type": "bar",
+          "unit": "Total Images",
+          "data": [
+            { "label": "Critical", "value": 2, "color": "#8b0f1f" },
+            { "label": "High", "value": 2, "color": "#e0453a" },
+            { "label": "Medium", "value": 1, "color": "#f28c38" },
+            { "label": "Low", "value": 1, "color": "#f7cf5a" }
+          ]
+        }
+      ]
+    }
+  ]
+}
