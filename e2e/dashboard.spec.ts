@@ -155,6 +155,60 @@ test('keeps the layout across a reload', async ({ page }) => {
   await expect(page.getByRole('article')).toHaveCount(6)
 })
 
+test('a returning visitor with an older saved layout sees new JSON widgets and keeps their changes', async ({
+  page,
+}) => {
+  // Saved by the v1 app when the config had only the CSPM category: Cloud Accounts hidden
+  // under an old title, plus one widget the visitor created.
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'cnapp-dashboard',
+      JSON.stringify({
+        version: 1,
+        state: {
+          categories: [
+            {
+              id: 'cspm',
+              name: 'CSPM Executive Dashboard',
+              tabLabel: 'CSPM',
+              widgets: [
+                { id: 'cloud-accounts', name: 'Old Title', text: 'old', type: 'donut', hidden: true },
+                { id: 'cloud-account-risk', name: 'Cloud Account Risk Assessment', text: 'old' },
+                { id: 'widget-mine', name: 'My Notes', text: 'Kept across releases.', type: 'text', custom: true },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+  })
+  await page.reload()
+
+  // Categories and widgets that are only in the current JSON appear.
+  await expect(section(page, 'CWPP Dashboard').getByRole('article')).toHaveCount(2)
+  await expect(section(page, 'Registry Scan').getByRole('article')).toHaveCount(2)
+  // The hidden widget stays hidden, and the visitor's own widget is still there.
+  await expect(widget(page, 'Cloud Accounts')).toHaveCount(0)
+  await expect(widget(page, 'Old Title')).toHaveCount(0)
+  await expect(
+    section(page, 'CSPM Executive Dashboard').getByRole('article', { name: 'My Notes' }),
+  ).toContainText('Kept across releases.')
+  await expect(page.getByRole('article')).toHaveCount(6)
+
+  // Storage was rewritten in the current format.
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('cnapp-dashboard')!))
+  expect(saved.version).toBe(2)
+  expect(saved.state.hiddenWidgetIds).toEqual(['cloud-accounts'])
+})
+
+test('an unreadable saved layout falls back to the JSON config and is cleared', async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem('cnapp-dashboard', '{"version":2,"state":"broken"'))
+  await page.reload()
+
+  await expect(page.getByRole('article')).toHaveCount(6)
+  expect(await page.evaluate(() => localStorage.getItem('cnapp-dashboard'))).toBeNull()
+})
+
 test('Reset to default restores the JSON config', async ({ page }) => {
   await removeWidget(page, 'Cloud Accounts')
   await createWidget(page, 'CSPM Executive Dashboard', 'Temporary', 'Gone after reset.')
