@@ -2,7 +2,7 @@
 
 A configurable security dashboard. The page is rendered entirely from a JSON config of categories and widgets, and the user can add, remove, hide, show and search widgets. Changes are kept in a Zustand store and saved to `localStorage`.
 
-**Live demo:** https://accuknox-dashboard.pages.dev
+**Live demo:** https://cnapp-dashboard.pages.dev
 
 ![Dashboard on desktop](docs/desktop-1-default.png)
 
