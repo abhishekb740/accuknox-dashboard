@@ -6,6 +6,9 @@ const store = () => useDashboardStore.getState()
 const category = (id: string) => store().categories.find((c) => c.id === id)!
 const widget = (categoryId: string, widgetId: string) =>
   category(categoryId).widgets.find((w) => w.id === widgetId)
+/** Adds one widget the way the drawer does, through applyWidgetChanges. */
+const add = (categoryId: string, name: string, text: string) =>
+  store().applyWidgetChanges({ visibility: {}, additions: [{ categoryId, name, text }] })
 
 beforeEach(() => {
   localStorage.clear()
@@ -23,38 +26,54 @@ describe('initial state', () => {
   })
 })
 
-describe('addWidget', () => {
+describe('adding widgets', () => {
   it('appends a visible text widget to the chosen category only', () => {
-    const created = store().addWidget('cwpp', { name: 'Runtime Policies', text: 'Blocked syscalls' })
+    add('cwpp', 'Runtime Policies', 'Blocked syscalls')
 
-    expect(created).not.toBeNull()
     expect(category('cwpp').widgets.at(-1)).toMatchObject({
       name: 'Runtime Policies',
       text: 'Blocked syscalls',
       type: 'text',
       custom: true,
     })
+    expect(category('cwpp').widgets.at(-1)?.hidden).toBeFalsy()
     expect(category('cspm').widgets).toHaveLength(2)
   })
 
-  it('trims input and rejects an empty name or text', () => {
-    expect(store().addWidget('cspm', { name: '   ', text: 'x' })).toBeNull()
-    expect(store().addWidget('cspm', { name: 'x', text: '' })).toBeNull()
+  it('trims input and skips an addition with an empty name or text', () => {
+    add('cspm', '   ', 'x')
+    add('cspm', 'x', '')
     expect(category('cspm').widgets).toHaveLength(2)
 
-    const created = store().addWidget('cspm', { name: '  Spaced  ', text: ' out ' })
-    expect(created).toMatchObject({ name: 'Spaced', text: 'out' })
+    add('cspm', '  Spaced  ', ' out ')
+    expect(category('cspm').widgets.at(-1)).toMatchObject({ name: 'Spaced', text: 'out' })
   })
 
   it('gives each new widget a unique id', () => {
-    const a = store().addWidget('cspm', { name: 'A', text: 'a' })
-    const b = store().addWidget('cspm', { name: 'A', text: 'a' })
-    expect(a!.id).not.toBe(b!.id)
+    add('cspm', 'A', 'a')
+    add('cspm', 'A', 'a')
+    const [a, b] = category('cspm').widgets.slice(-2)
+    expect(a.id).not.toBe(b.id)
   })
 
-  it('persists the layout to localStorage', () => {
-    store().addWidget('registry', { name: 'Saved', text: 'kept' })
-    expect(localStorage.getItem(STORAGE_KEY)).toContain('Saved')
+  it('ignores additions for an unknown category', () => {
+    const before = store().categories
+    add('missing', 'Lost', 'nowhere to go')
+    expect(store().categories).toEqual(before)
+  })
+
+  it('persists only the user changes to localStorage', () => {
+    add('registry', 'Saved', 'kept')
+    store().removeWidget('cspm', 'cloud-accounts')
+
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)!)
+    expect(saved.version).toBe(2)
+    expect(saved.state.hiddenWidgetIds).toEqual(['cloud-accounts'])
+    expect(saved.state.customWidgets.registry).toEqual([
+      { id: expect.any(String), name: 'Saved', text: 'kept' },
+    ])
+    // Config widgets are not copied into storage.
+    expect(localStorage.getItem(STORAGE_KEY)).not.toContain('Image Risk Assessment')
   })
 })
 
@@ -76,11 +95,11 @@ describe('removeWidget', () => {
 })
 
 describe('toggling visibility', () => {
-  it('setWidgetVisibility hides and shows a widget', () => {
-    store().setWidgetVisibility('registry', 'image-risk', false)
+  it('applyWidgetChanges hides and shows a widget', () => {
+    store().applyWidgetChanges({ visibility: { 'image-risk': false }, additions: [] })
     expect(widget('registry', 'image-risk')?.hidden).toBe(true)
 
-    store().setWidgetVisibility('registry', 'image-risk', true)
+    store().applyWidgetChanges({ visibility: { 'image-risk': true }, additions: [] })
     expect(widget('registry', 'image-risk')?.hidden).toBe(false)
   })
 
@@ -117,7 +136,7 @@ describe('search', () => {
   })
 
   it('matches widget text as well as name', () => {
-    store().addWidget('cspm', { name: 'Notes', text: 'Quarterly kubernetes review' })
+    add('cspm', 'Notes', 'Quarterly kubernetes review')
     const result = filterCategories(store().categories, 'kubernetes')
     expect(result.flatMap((c) => c.widgets.map((w) => w.name))).toEqual(['Notes'])
   })
@@ -135,7 +154,7 @@ describe('search', () => {
 
 describe('resetDashboard', () => {
   it('restores the JSON config and clears the search', () => {
-    store().addWidget('cspm', { name: 'Temp', text: 'temp' })
+    add('cspm', 'Temp', 'temp')
     store().removeWidget('registry', 'image-risk')
     store().setSearchQuery('temp')
 
