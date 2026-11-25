@@ -64,6 +64,42 @@ describe('App', () => {
     expect(within(registry).getByRole('article', { name: 'Base Image Drift' })).toBeInTheDocument()
   })
 
+  it('keeps a typed widget in the tab it was typed in, even after switching tabs', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Add widget to Registry Scan' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Add Widget' })
+    await user.type(within(dialog).getByLabelText('Widget name'), 'Typed Only')
+    await user.type(within(dialog).getByLabelText('Widget text'), 'Never added to the list')
+
+    // Each tab has its own form, so the CWPP tab starts empty.
+    await user.click(within(dialog).getByRole('tab', { name: 'CWPP' }))
+    expect(within(dialog).getByLabelText('Widget name')).toHaveValue('')
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }))
+
+    const registry = screen.getByRole('region', { name: 'Registry Scan' })
+    expect(within(registry).getByRole('article', { name: 'Typed Only' })).toBeInTheDocument()
+    const cwpp = screen.getByRole('region', { name: 'CWPP Dashboard' })
+    expect(within(cwpp).queryByRole('article', { name: 'Typed Only' })).not.toBeInTheDocument()
+  })
+
+  it('on Confirm, switches to the tab holding an unfinished widget and explains why', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Add widget to CSPM Executive Dashboard' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Add Widget' })
+    await user.type(within(dialog).getByLabelText('Widget name'), 'Half done')
+    await user.click(within(dialog).getByRole('tab', { name: 'Image' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }))
+
+    expect(screen.getByRole('dialog', { name: 'Add Widget' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('tab', { name: 'CSPM' })).toHaveAttribute('aria-selected', 'true')
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Finish the new widget')
+    expect(within(dialog).getByLabelText('Widget name')).toHaveValue('Half done')
+  })
+
   it('filters by search and shows the empty state when nothing matches', async () => {
     const user = userEvent.setup()
     render(<App />)

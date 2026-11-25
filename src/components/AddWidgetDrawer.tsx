@@ -13,6 +13,16 @@ interface AddWidgetDrawerProps {
 
 type StagedWidget = WidgetChanges['additions'][number] & { tempId: string }
 
+/** What is typed in the new widget form. Each tab keeps its own, so text stays where it was typed. */
+interface Draft {
+  name: string
+  text: string
+}
+
+const EMPTY_DRAFT: Draft = { name: '', text: '' }
+const isEmptyDraft = (draft: Draft) => !draft.name.trim() && !draft.text.trim()
+const isCompleteDraft = (draft: Draft) => Boolean(draft.name.trim() && draft.text.trim())
+
 /**
  * Right-side panel for choosing which widgets each category shows and creating new ones.
  * Every change is staged locally and only written to the store on Confirm.
@@ -26,8 +36,7 @@ export function AddWidgetDrawer({ initialCategoryId, onClose }: AddWidgetDrawerP
     Object.fromEntries(categories.flatMap((c) => c.widgets.map((w) => [w.id, !w.hidden]))),
   )
   const [staged, setStaged] = useState<StagedWidget[]>([])
-  const [name, setName] = useState('')
-  const [text, setText] = useState('')
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({})
   const [error, setError] = useState('')
 
   const panelRef = useRef<HTMLDivElement>(null)
@@ -52,6 +61,10 @@ export function AddWidgetDrawer({ initialCategoryId, onClose }: AddWidgetDrawerP
 
   const activeCategory = categories.find((c) => c.id === activeId) ?? categories[0]
   const stagedHere = staged.filter((s) => s.categoryId === activeCategory.id)
+  const draft = drafts[activeCategory.id] ?? EMPTY_DRAFT
+
+  const updateDraft = (patch: Partial<Draft>) =>
+    setDrafts((all) => ({ ...all, [activeCategory.id]: { ...draft, ...patch } }))
 
   const selectTab = (id: string) => {
     setActiveId(id)
@@ -72,35 +85,35 @@ export function AddWidgetDrawer({ initialCategoryId, onClose }: AddWidgetDrawerP
     selectTab(categories[targets[event.key]].id)
   }
 
-  const formIsEmpty = !name.trim() && !text.trim()
-  const formIsComplete = Boolean(name.trim() && text.trim())
-
-  const buildStaged = (): StagedWidget => ({
+  const buildStaged = (categoryId: string, from: Draft): StagedWidget => ({
     tempId: createId('staged'),
-    categoryId: activeCategory.id,
-    name: name.trim(),
-    text: text.trim(),
+    categoryId,
+    name: from.name.trim(),
+    text: from.text.trim(),
   })
 
   const handleStage = (event: FormEvent) => {
     event.preventDefault()
-    if (!formIsComplete) {
+    if (!isCompleteDraft(draft)) {
       setError('Enter both a widget name and some widget text.')
       return
     }
-    setStaged((list) => [...list, buildStaged()])
-    setName('')
-    setText('')
+    setStaged((list) => [...list, buildStaged(activeCategory.id, draft)])
+    setDrafts((all) => ({ ...all, [activeCategory.id]: EMPTY_DRAFT }))
     setError('')
   }
 
   const handleConfirm = () => {
-    // A filled-in form that was never added to the list still counts, so nothing typed is lost.
-    if (!formIsEmpty && !formIsComplete) {
+    // A filled-in form that was never added to the list still counts, in the category it was
+    // typed in, so nothing typed is lost.
+    const typedIn = categories.filter((c) => drafts[c.id] && !isEmptyDraft(drafts[c.id]))
+    const unfinished = typedIn.find((c) => !isCompleteDraft(drafts[c.id]))
+    if (unfinished) {
+      selectTab(unfinished.id)
       setError('Finish the new widget (name and text) or clear it before confirming.')
       return
     }
-    const additions = formIsComplete ? [...staged, buildStaged()] : staged
+    const additions = [...staged, ...typedIn.map((c) => buildStaged(c.id, drafts[c.id]))]
     applyWidgetChanges({
       visibility,
       additions: additions.map((item) => ({
@@ -250,11 +263,11 @@ export function AddWidgetDrawer({ initialCategoryId, onClose }: AddWidgetDrawerP
                   </label>
                   <input
                     id={`${baseId}-name`}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    value={draft.name}
+                    onChange={(e) => updateDraft({ name: e.target.value })}
                     maxLength={60}
                     placeholder="e.g. Runtime Policy Violations"
-                    aria-invalid={Boolean(error) && !name.trim()}
+                    aria-invalid={Boolean(error) && !draft.name.trim()}
                     aria-describedby={error ? errorId : undefined}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none"
                   />
@@ -265,12 +278,12 @@ export function AddWidgetDrawer({ initialCategoryId, onClose }: AddWidgetDrawerP
                   </label>
                   <textarea
                     id={`${baseId}-text`}
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
+                    value={draft.text}
+                    onChange={(e) => updateDraft({ text: e.target.value })}
                     rows={3}
                     maxLength={400}
                     placeholder="What should this widget show?"
-                    aria-invalid={Boolean(error) && !text.trim()}
+                    aria-invalid={Boolean(error) && !draft.text.trim()}
                     aria-describedby={error ? errorId : undefined}
                     className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none"
                   />
